@@ -15,7 +15,7 @@ export function useScannerLocation(
 
         const init = async () => {
             update({ isLoadingRainfall: true });
-            const defaultLat = 52.52, defaultLon = 13.405;
+            const defaultLat = 38.8462, defaultLon = -77.3064;
 
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(
