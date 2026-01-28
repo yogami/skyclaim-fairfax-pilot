@@ -65,6 +65,32 @@ export const openMeteoClient = {
         return result;
     },
 
+    /**
+     * Fetch River Discharge (m3/s) to simulate Flood Stage
+     * For MVP, we map discharge to Flood Stage roughly.
+     */
+    async fetchFloodStage(lat: number, lon: number): Promise<'NORMAL' | 'ACTION' | 'MINOR' | 'MODERATE' | 'MAJOR'> {
+        try {
+            // Using Open-Meteo Flood API
+            const url = `https://flood-api.open-meteo.com/v1/flood?latitude=${lat}&longitude=${lon}&daily=river_discharge&forecast_days=1`;
+            const response = await fetch(url);
+            if (!response.ok) return 'NORMAL'; // Fail safe
+
+            const data = await response.json();
+            const discharge = data.daily?.river_discharge?.[0] || 0;
+
+            // Simple heuristic mapping for Fairfax MVP (Potomac River approx)
+            if (discharge > 500) return 'MAJOR';
+            if (discharge > 300) return 'MODERATE';
+            if (discharge > 150) return 'MINOR';
+            if (discharge > 100) return 'ACTION';
+            return 'NORMAL';
+        } catch (e) {
+            console.warn("Flood API failed, returning NORMAL", e);
+            return 'NORMAL';
+        }
+    },
+
     handleFetchError(error: Error): RainfallData {
         const c = this.getCachedData();
         if (!c) throw error;
