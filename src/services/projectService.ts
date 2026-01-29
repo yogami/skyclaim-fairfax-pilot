@@ -10,18 +10,21 @@ export interface CreateProjectInput {
 }
 
 async function getUserId(): Promise<string | null> {
+    if (!supabase) return null;
     const { data: { user } } = await supabase.auth.getUser();
     return user?.id || null;
 }
 
 /**
  * Project service for Supabase CRUD operations
+ * NOTE: All methods gracefully handle missing Supabase configuration (MVP Mode)
  */
 export const projectService = {
     /**
      * Create a new project
      */
     async create(input: CreateProjectInput): Promise<{ data: Project | null; error: Error | null }> {
+        if (!supabase) return { data: null, error: new Error('Supabase not configured') };
         const userId = await getUserId();
         if (!userId) return { data: null, error: new Error('User not authenticated') };
 
@@ -49,6 +52,7 @@ export const projectService = {
      * Get all projects for current user
      */
     async getMyProjects(): Promise<{ data: Project[]; error: Error | null }> {
+        if (!supabase) return { data: [], error: new Error('Supabase not configured') };
         const userId = await getUserId();
         if (!userId) return { data: [], error: new Error('User not authenticated') };
 
@@ -66,6 +70,7 @@ export const projectService = {
      * Get a project by ID (public access for shared URLs)
      */
     async getById(id: string): Promise<{ data: Project | null; error: Error | null }> {
+        if (!supabase) return { data: null, error: new Error('Supabase not configured') };
         const { data, error } = await supabase
             .from('projects')
             .select('*')
@@ -82,6 +87,7 @@ export const projectService = {
      * Get a project by share URL
      */
     async getByShareUrl(shareUrl: string): Promise<{ data: Project | null; error: Error | null }> {
+        if (!supabase) return { data: null, error: new Error('Supabase not configured') };
         const { data, error } = await supabase
             .from('projects')
             .select('*')
@@ -98,6 +104,7 @@ export const projectService = {
      * Update a project
      */
     async update(id: string, updates: Partial<CreateProjectInput>): Promise<{ error: Error | null }> {
+        if (!supabase) return { error: new Error('Supabase not configured') };
         const { error } = await supabase
             .from('projects')
             .update(updates)
@@ -110,6 +117,7 @@ export const projectService = {
      * Delete a project
      */
     async delete(id: string): Promise<{ error: Error | null }> {
+        if (!supabase) return { error: new Error('Supabase not configured') };
         const { error } = await supabase
             .from('projects')
             .delete()

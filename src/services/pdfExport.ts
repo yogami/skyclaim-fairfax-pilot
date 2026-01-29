@@ -1,7 +1,7 @@
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import type { GreenFix } from '../utils/hydrology';
-import { matchEligibleGrants, type Grant } from './grantMatcher';
+// import { matchEligibleGrants, type Grant } from './grantMatcher'; // DEPRECATED in Pivot
 
 export interface PDFExportData {
     streetName: string;
@@ -149,35 +149,23 @@ function drawImpactSummary(doc: jsPDF, data: PDFExportData, y: number): number {
     return y + 35;
 }
 
-function drawFundingPrograms(doc: jsPDF, data: PDFExportData, y: number): number {
+function drawFundingPrograms(doc: jsPDF, _data: PDFExportData, y: number): number {
     doc.setFontSize(12);
-    doc.text('Matched Funding Programs', 10, y);
+    doc.text('Claim Eligibility Status', 10, y); // UPDATED TITLE
     y += 8;
 
-    const totalCost = calculateTotalCost(data.features);
-    const grants = matchEligibleGrants({
-        latitude: data.latitude,
-        longitude: data.longitude,
-        totalCostEUR: totalCost,
-        fixes: data.features.map(f => ({ type: f.type, size: f.size })),
-        areaM2: data.totalArea,
-    });
-
-    if (grants.length === 0) {
-        doc.setFontSize(9);
-        doc.setTextColor(128, 128, 128);
-        doc.text('No matching funding programs found for this location.', 15, y);
-        y += 6;
-    } else {
-        y = drawGrantList(doc, grants, y);
-    }
-
+    // STUB: Use Claims logic later. For now, just show placeholder.
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
-    doc.text('Expected ROI: €1 avoided flood damage per €1 invested (10-year horizon)', 15, y + 5);
+    doc.text('Property is eligible for parametric flood coverage.', 15, y);
+
     return y + 15;
 }
 
+// Deprecated Helper
+// function drawGrantList(...) ...
+
+/*
 function drawGrantList(doc: jsPDF, grants: Grant[], y: number): number {
     doc.setFontSize(9);
     grants.slice(0, 4).forEach((grant) => {
@@ -196,6 +184,7 @@ function drawGrantList(doc: jsPDF, grants: Grant[], y: number): number {
     });
     return y;
 }
+*/
 
 function drawPDFFooter(doc: jsPDF): void {
     doc.setFontSize(8);

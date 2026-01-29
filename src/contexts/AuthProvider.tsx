@@ -9,6 +9,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     useEffect(() => {
+        // Guard: If Supabase is not configured, skip auth flow
+        if (!supabase) {
+            setAuth({ session: null, user: null, loading: false });
+            return;
+        }
+
         supabase.auth.getSession().then(({ data: { session } }) => {
             setAuth({ session, user: session?.user ?? null, loading: false });
         });
@@ -21,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const signInWithEmail = async (email: string) => {
+        if (!supabase) return { error: new Error('Supabase not configured') };
         const { error } = await supabase.auth.signInWithOtp({
             email, options: { emailRedirectTo: `${window.location.origin}/scanner` }
         });
@@ -33,6 +40,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const signOut = async () => {
+        if (!supabase) {
+            setAuth({ session: null, user: null, loading: false });
+            return;
+        }
         await supabase.auth.signOut();
         setAuth({ session: null, user: null, loading: false });
     };
