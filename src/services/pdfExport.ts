@@ -1,7 +1,7 @@
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import type { GreenFix } from '../utils/hydrology';
-// import { matchEligibleGrants, type Grant } from './grantMatcher'; // DEPRECATED in Pivot
+import { performProfessionalAssessment } from './HydrologyEngine';
 
 export interface PDFExportData {
     streetName: string;
@@ -15,22 +15,8 @@ export interface PDFExportData {
     screenshotElement?: HTMLElement | null;
 }
 
-// Feature type display names
-const FEATURE_NAMES: Record<GreenFix['type'], string> = {
-    rain_garden: 'Rain Garden',
-    permeable_pavement: 'Permeable Pavement',
-    tree_planter: 'Tree Planter',
-};
-
-// Estimated costs per m² (Berlin market rates)
-const COST_PER_M2: Record<GreenFix['type'], number> = {
-    rain_garden: 800,
-    permeable_pavement: 120,
-    tree_planter: 500,
-};
-
 /**
- * Export project data as a grant-ready PDF
+ * Export project data as a professional engineer's report
  */
 export async function exportProjectPDF(data: PDFExportData): Promise<void> {
     const doc = new jsPDF({
@@ -39,33 +25,44 @@ export async function exportProjectPDF(data: PDFExportData): Promise<void> {
         format: 'a4',
     });
 
+    // Run professional assessment
+    const assessment = performProfessionalAssessment({
+        latitude: data.latitude,
+        longitude: data.longitude,
+        totalAreaM2: data.totalArea,
+        imperviousAreaM2: data.totalArea,
+        soilType: 'B',
+        designStormEvent: 10
+    });
+
     let y = 15;
     y = drawPDFHeader(doc, data, y);
     y = await drawARCapture(doc, data, y);
-    y = drawHydrologyData(doc, data, y);
-    y = drawProposedFeatures(doc, data, y);
-    y = drawImpactSummary(doc, data, y);
-    drawFundingPrograms(doc, data, y);
+    y = drawHydrologyData(doc, data, assessment.metrics, y);
+    y = drawEngineeringSpecifications(doc, assessment.recommendations, y);
+    y = drawGrantAlignmentSummary(doc, assessment.grantAlignment, y);
     drawPDFFooter(doc);
 
-    const filename = `${data.streetName.replace(/\s+/g, '_')}_retrofit_plan.pdf`;
+    const filename = `${data.streetName.replace(/\s+/g, '_')}_Engineering_Report.pdf`;
     doc.save(filename);
 }
 
 function drawPDFHeader(doc: jsPDF, data: PDFExportData, y: number): number {
     const pageWidth = doc.internal.pageSize.getWidth();
-    doc.setFillColor(16, 185, 129); // Emerald
+    doc.setFillColor(31, 41, 55);
     doc.rect(0, 0, pageWidth, 35, 'F');
 
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
-    doc.text('Micro-Catchment Retrofit Plan', 10, y + 5);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Stormwater Site Assessment Report', 10, y + 5);
 
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(14);
-    doc.text(data.streetName, 10, y + 15);
+    doc.text(`Project Location: ${data.streetName}`, 10, y + 15);
 
     doc.setFontSize(10);
-    doc.text(`Coordinates: ${data.latitude.toFixed(4)}, ${data.longitude.toFixed(4)}`, 10, y + 22);
+    doc.text(`GIS Coordinates: ${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`, 10, y + 22);
 
     return 45;
 }
@@ -74,7 +71,7 @@ async function addCaptureToPDF(doc: jsPDF, container: HTMLElement | null, y: num
     if (!container) {
         doc.setFontSize(10);
         doc.setTextColor(128, 128, 128);
-        doc.text('[AR screenshot placeholder - capture on device]', 10, y + 50);
+        doc.text('[AR Site Survey Placeholder]', 10, y + 50);
         return;
     }
     const canvas = await html2canvas(container);
@@ -82,9 +79,10 @@ async function addCaptureToPDF(doc: jsPDF, container: HTMLElement | null, y: num
 }
 
 async function drawARCapture(doc: jsPDF, data: PDFExportData, y: number): Promise<number> {
-    doc.setTextColor(0, 0, 0);
+    doc.setTextColor(31, 41, 55);
     doc.setFontSize(12);
-    doc.text('Site Analysis (AR Capture)', 10, y);
+    doc.setFont('helvetica', 'bold');
+    doc.text('1.0 Field Infrastructure Analysis (AR Capture)', 10, y);
     const container = data.screenshotElement || document.querySelector('#ar-container');
     try {
         await addCaptureToPDF(doc, container as HTMLElement, y + 5);
@@ -92,107 +90,71 @@ async function drawARCapture(doc: jsPDF, data: PDFExportData, y: number): Promis
     return y + 110;
 }
 
-function drawHydrologyData(doc: jsPDF, data: PDFExportData, y: number): number {
-    doc.setTextColor(0, 0, 0);
+function drawHydrologyData(doc: jsPDF, data: PDFExportData, metrics: any, y: number): number {
+    doc.setTextColor(31, 41, 55);
     doc.setFontSize(12);
-    doc.text('Hydrology Analysis', 10, y);
+    doc.setFont('helvetica', 'bold');
+    doc.text('2.0 Hydrology & Basin Characteristics (Rational Method)', 10, y);
     y += 8;
 
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text(`• Rainfall Intensity: ${data.rainfall} mm/hr (design storm)`, 15, y);
+    doc.text(`• Rainfall Intensity (i): ${data.rainfall} mm/hr`, 15, y);
     y += 6;
-    doc.text(`• Impervious Area: ${data.totalArea} m²`, 15, y);
+    doc.text(`• Weighted Runoff Coefficient (C): ${metrics.weightedC.toFixed(2)}`, 15, y);
     y += 6;
-    doc.text(`• Peak Runoff: ${data.peakRunoff.toFixed(2)} L/s (before intervention)`, 15, y);
+    doc.text(`• Peak Discharge (Q): ${metrics.peakRunoffLS.toFixed(2)} L/s`, 15, y);
+    y += 6;
+    doc.text(`• Required Water Quality Volume (WQv): ${metrics.requiredStorageM3.toFixed(2)} m³`, 15, y);
     return y + 10;
 }
 
-function drawProposedFeatures(doc: jsPDF, data: PDFExportData, y: number): number {
+function drawEngineeringSpecifications(doc: jsPDF, recs: any[], y: number): number {
     doc.setFontSize(12);
-    doc.text('Proposed Green Infrastructure', 10, y);
+    doc.setFont('helvetica', 'bold');
+    doc.text('3.0 Technical Specifications & Infrastructure Sizing', 10, y);
     y += 8;
 
-    data.features.forEach((feature, index) => {
-        const name = FEATURE_NAMES[feature.type];
-        const reduction = Math.round(feature.reductionRate * 100);
+    recs.forEach((rec, index) => {
         doc.setFontSize(10);
-        doc.text(
-            `${index + 1}. ${name} (${feature.size}m²) → -${reduction}% runoff | ${feature.placement}`,
-            15,
-            y
-        );
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${index + 1}. ${rec.feature}`, 15, y);
+        y += 5;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Requirement: ${rec.requirement}`, 20, y);
+        y += 5;
+        doc.text(`Spec: ${rec.description}`, 20, y);
         y += 6;
     });
 
     return y + 5;
 }
 
-function calculateTotalCost(features: GreenFix[]): number {
-    return features.reduce((sum, f) => sum + (f.size * COST_PER_M2[f.type]), 0);
-}
-
-function drawImpactSummary(doc: jsPDF, data: PDFExportData, y: number): number {
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const totalCost = calculateTotalCost(data.features);
-
-    doc.setFillColor(236, 253, 245); // Light emerald
-    doc.rect(10, y, pageWidth - 20, 25, 'F');
-
-    doc.setFontSize(14);
-    doc.setTextColor(16, 185, 129);
-    doc.text(`Total Runoff Reduction: ${Math.round(data.totalReduction)}%`, 15, y + 10);
-
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Estimated Budget: €${totalCost.toLocaleString()} | Timeline: 4-6 weeks`, 15, y + 18);
-
-    return y + 35;
-}
-
-function drawFundingPrograms(doc: jsPDF, _data: PDFExportData, y: number): number {
+function drawGrantAlignmentSummary(doc: jsPDF, grants: any[], y: number): number {
     doc.setFontSize(12);
-    doc.text('Claim Eligibility Status', 10, y); // UPDATED TITLE
+    doc.setFont('helvetica', 'bold');
+    doc.text('4.0 Municipal Grant & Funding Alignment', 10, y);
     y += 8;
 
-    // STUB: Use Claims logic later. For now, just show placeholder.
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-    doc.text('Property is eligible for parametric flood coverage.', 15, y);
+    grants.forEach((grant) => {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`• ${grant.programCode} (${grant.agency})`, 15, y);
+        y += 5;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Target Score: ${(grant.eligibilityScore * 100).toFixed(0)}% | Payout: ${grant.potentialFunding}`, 20, y);
+        y += 6;
+    });
 
     return y + 15;
 }
-
-// Deprecated Helper
-// function drawGrantList(...) ...
-
-/*
-function drawGrantList(doc: jsPDF, grants: Grant[], y: number): number {
-    doc.setFontSize(9);
-    grants.slice(0, 4).forEach((grant) => {
-        doc.setTextColor(0, 0, 0);
-        doc.text(
-            `• ${grant.name}: Up to ${grant.maxFundingPercent}% (max €${grant.maxAmountEUR.toLocaleString()})`,
-            15,
-            y
-        );
-        y += 5;
-        if (grant.url) {
-            doc.setTextColor(59, 130, 246);
-            doc.text(`  → ${grant.url}`, 15, y);
-            y += 5;
-        }
-    });
-    return y;
-}
-*/
 
 function drawPDFFooter(doc: jsPDF): void {
     doc.setFontSize(8);
     doc.setTextColor(128, 128, 128);
     doc.text(
-        `Generated by Micro-Catchment Retrofit Planner | ${new Date().toLocaleDateString()}`,
+        `Technical Assessment generated by Micro-Catchment Pro OS | Civil Engineering Companion | ${new Date().toLocaleDateString()}`,
         10,
         285
     );
 }
-
