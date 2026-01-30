@@ -16,6 +16,10 @@ export default defineConfig({
             args: [
                 '--use-fake-ui-for-media-stream',
                 '--use-fake-device-for-media-stream',
+                `--use-file-for-fake-video-capture=${process.cwd()}/tests/fixtures/mock-camera.y4m`,
+                '--use-gl=angle',
+                '--use-angle=swiftshader',
+                '--disable-webgl-draft-extensions',
             ],
         },
     },
