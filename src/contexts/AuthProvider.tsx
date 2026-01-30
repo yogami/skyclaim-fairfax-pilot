@@ -28,8 +28,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const signInWithEmail = async (email: string) => {
         if (!supabase) return { error: new Error('Supabase not configured') };
+        const redirectTo = import.meta.env.VITE_SITE_URL
+            ? `${import.meta.env.VITE_SITE_URL}/scanner`
+            : `${window.location.origin}/scanner`;
+
         const { error } = await supabase.auth.signInWithOtp({
-            email, options: { emailRedirectTo: `${window.location.origin}/scanner` }
+            email, options: { emailRedirectTo: redirectTo }
         });
         return { error: error ? new Error(error.message) : null };
     };
