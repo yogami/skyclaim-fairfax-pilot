@@ -515,15 +515,65 @@ function GPSWaitingView({ accuracy, error, onSpoof }: {
 }
 
 function updatePolygonLayer(map: mapboxgl.Map, vertices: GeoVertex[], hasError: boolean) {
-    const sourceId = 'boundary-polygon';
-    if (map.getLayer('boundary-polygon-fill')) map.removeLayer('boundary-polygon-fill');
-    if (map.getLayer('boundary-polygon-outline')) map.removeLayer('boundary-polygon-outline');
-    if (map.getSource(sourceId)) map.removeSource(sourceId);
-    if (vertices.length < 3) return;
-    map.addSource(sourceId, { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...vertices.map(v => [v.lon, v.lat]), [vertices[0].lon, vertices[0].lat]]] } } });
+    const polyId = 'boundary-polygon';
+    const lineId = 'boundary-line';
+
+    // Cleanup
+    if (map.getLayer('poly-fill')) map.removeLayer('poly-fill');
+    if (map.getLayer('poly-outline')) map.removeLayer('poly-outline');
+    if (map.getLayer('line-path')) map.removeLayer('line-path');
+    if (map.getSource(polyId)) map.removeSource(polyId);
+    if (map.getSource(lineId)) map.removeSource(lineId);
+
+    if (vertices.length < 2) return;
+
     const color = hasError ? '#f59e0b' : '#10b981';
-    map.addLayer({ id: 'boundary-polygon-fill', type: 'fill', source: sourceId, paint: { 'fill-color': color, 'fill-opacity': 0.2 } });
-    map.addLayer({ id: 'boundary-polygon-outline', type: 'line', source: sourceId, paint: { 'line-color': color, 'line-width': 2, 'line-dasharray': hasError ? [2, 2] : [1] } });
+
+    // 1. Draw the Path (LineString) for 2+ points
+    map.addSource(lineId, {
+        type: 'geojson',
+        data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+                type: 'LineString',
+                coordinates: vertices.map(v => [v.lon, v.lat])
+            }
+        }
+    });
+    map.addLayer({
+        id: 'line-path',
+        type: 'line',
+        source: lineId,
+        paint: { 'line-color': color, 'line-width': 3, 'line-dasharray': hasError ? [2, 2] : [1] }
+    });
+
+    // 2. Draw the Fill (Polygon) for 3+ points
+    if (vertices.length >= 3) {
+        map.addSource(polyId, {
+            type: 'geojson',
+            data: {
+                type: 'Feature',
+                properties: {},
+                geometry: {
+                    type: 'Polygon',
+                    coordinates: [[...vertices.map(v => [v.lon, v.lat]), [vertices[0].lon, vertices[0].lat]]]
+                }
+            }
+        });
+        map.addLayer({
+            id: 'poly-fill',
+            type: 'fill',
+            source: polyId,
+            paint: { 'fill-color': color, 'fill-opacity': 0.2 }
+        });
+        map.addLayer({
+            id: 'poly-outline',
+            type: 'line',
+            source: polyId,
+            paint: { 'line-color': color, 'line-width': 1, 'line-opacity': 0.5 }
+        });
+    }
 }
 
 function MapControls({ canUndo, canClear, canConfirm, onUndo, onClear, onConfirm, onCancel, statusMessage }: {
