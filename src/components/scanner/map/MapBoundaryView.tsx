@@ -87,7 +87,7 @@ export function MapBoundaryView({
                     accessToken: MAPBOX_TOKEN,
                     style: 'mapbox://styles/mapbox/satellite-v9',
                     center: [Number(initLon), Number(initLat)],
-                    zoom: 17,
+                    zoom: 20, // INCREASED ZOOM for precision
                     pitch: 0,
                     antialias: true,
                     trackResize: true,
@@ -97,6 +97,22 @@ export function MapBoundaryView({
                         if (resourceType === 'Tile') console.log(`[MAP_TILE]: ${url.substring(0, 50)}...`);
                         return { url };
                     }
+                });
+
+                // ADD GEOLOCATE CONTROL (Blue Dot)
+                const geolocate = new mapboxgl.GeolocateControl({
+                    positionOptions: { enableHighAccuracy: true },
+                    trackUserLocation: true,
+                    showUserHeading: true,
+                    showAccuracyCircle: true
+                });
+                m.addControl(geolocate, 'top-right');
+
+                // Trigger Geolocate immediately
+                m.on('load', () => {
+                    geolocate.trigger();
+                    markReady();
+                    m.resize();
                 });
 
                 const markReady = () => {
@@ -109,7 +125,6 @@ export function MapBoundaryView({
 
                 m.on('style.load', markReady);
                 m.on('render', () => { if (!isMapReady) markReady(); });
-                m.on('load', () => { markReady(); m.resize(); });
 
                 // VERTEX PLACEMENT VIA MAP CLICK
                 m.on('click', (e) => {
@@ -291,13 +306,20 @@ export function MapBoundaryView({
                             {isTooFar ? 'BOUNDS EXCEEDED: Stay near origin' :
                                 isAreaTooLarge ? 'CATCHMENT TOO LARGE: Limit 3500m²' :
                                     isAreaTooSmall ? 'CATCHMENT TOO SMALL: Needs 2m²' :
-                                        (gps.accuracy || 0) > 8 && vertices.length < minVertices ? 'LOW SIGNAL: Align nodes with physical curbs' :
-                                            vertices.length < minVertices ? `SELECT ${minVertices - vertices.length} MORE NODES` :
+                                        vertices.length === 0 ? 'TAP MAP TO START OUTLINE' :
+                                            vertices.length < minVertices ? `TAP TO ADD ${minVertices - vertices.length} MORE POINTS` :
                                                 'GEOMETRY VALID: READY'}
                         </p>
                     </div>
                 </div>
             </div>
+
+            {/* INSTRUCTION OVERLAY (Fades out after 3 points) */}
+            {vertices.length < 3 && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none animate-pulse">
+                    <p className="text-white/50 text-4xl font-black uppercase text-center opacity-20 select-none">TAP<br />MAP</p>
+                </div>
+            )}
 
             <MapControls
                 canUndo={vertices.length > 0}
