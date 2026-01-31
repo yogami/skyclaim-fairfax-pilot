@@ -126,15 +126,6 @@ export function MapBoundaryView({
                 m.on('style.load', markReady);
                 m.on('render', () => { if (!isMapReady) markReady(); });
 
-                // VERTEX PLACEMENT VIA MAP CLICK
-                m.on('click', (e) => {
-                    setVertices(prev => {
-                        if (prev.length >= (maxVertices || 10)) return prev;
-                        if (navigator.vibrate) navigator.vibrate(20);
-                        return [...prev, { lat: e.lngLat.lat, lon: e.lngLat.lng }];
-                    });
-                });
-
                 m.on('error', (e) => {
                     console.error('[MAP_ENGINE] Error:', e);
                     const err = e.error || e;
@@ -234,6 +225,13 @@ export function MapBoundaryView({
         onBoundaryConfirmed(GeoPolygon.create(vertices));
     }, [vertices, isValid, onBoundaryConfirmed]);
 
+    const handleAddPoint = useCallback(() => {
+        if (!map.current || vertices.length >= (maxVertices || 10)) return;
+        const center = map.current.getCenter();
+        if (navigator.vibrate) navigator.vibrate(20);
+        setVertices(prev => [...prev, { lat: center.lat, lon: center.lng }]);
+    }, [vertices.length, maxVertices]);
+
     const handleRecenter = useCallback(() => {
         if (map.current && gps.lat && gps.lon) {
             map.current.easeTo({
@@ -306,20 +304,36 @@ export function MapBoundaryView({
                             {isTooFar ? 'BOUNDS EXCEEDED: Stay near origin' :
                                 isAreaTooLarge ? 'CATCHMENT TOO LARGE: Limit 3500m²' :
                                     isAreaTooSmall ? 'CATCHMENT TOO SMALL: Needs 2m²' :
-                                        vertices.length === 0 ? 'TAP MAP TO START OUTLINE' :
-                                            vertices.length < minVertices ? `TAP TO ADD ${minVertices - vertices.length} MORE POINTS` :
+                                        vertices.length === 0 ? 'ALIGN CROSSHAIR & ADD POINT' :
+                                            vertices.length < minVertices ? `ADD ${minVertices - vertices.length} MORE POINTS` :
                                                 'GEOMETRY VALID: READY'}
                         </p>
                     </div>
                 </div>
             </div>
 
-            {/* INSTRUCTION OVERLAY (Fades out after 3 points) */}
-            {vertices.length < 3 && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none animate-pulse">
-                    <p className="text-white/50 text-4xl font-black uppercase text-center opacity-20 select-none">TAP<br />MAP</p>
+            {/* CROSSHAIR - High Precision Targeting */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none flex flex-col items-center">
+                <div className="relative">
+                    <div className="w-16 h-16 border border-emerald-500/30 rounded-full animate-[pulse_2s_infinite]" />
+                    <div className="absolute top-1/2 left-0 w-16 h-px bg-emerald-500/50 -translate-y-1/2" />
+                    <div className="absolute top-0 left-1/2 w-px h-16 bg-emerald-500/50 -translate-x-1/2" />
+                    <div className="absolute top-1/2 left-1/2 w-1.5 h-1.5 bg-emerald-500 rounded-full -translate-x-1/2 -translate-y-1/2 shadow-[0_0_15px_rgba(16,185,129,0.8)]" />
                 </div>
-            )}
+            </div>
+
+            {/* ADD POINT BUTTON - Big and Accessible */}
+            <div className="absolute bottom-[200px] left-1/2 -translate-x-1/2 z-50">
+                <button
+                    onClick={handleAddPoint}
+                    className="group relative flex items-center justify-center w-20 h-20 bg-emerald-500 text-black rounded-full shadow-[0_0_40px_rgba(16,185,129,0.4)] active:scale-95 transition-all pointer-events-auto border-4 border-black"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 group-active:rotate-90 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 px-3 py-1 rounded-full text-[10px] text-emerald-400 font-bold uppercase whitespace-nowrap border border-emerald-500/20 shadow-2xl">Add Point</span>
+                </button>
+            </div>
 
             <MapControls
                 canUndo={vertices.length > 0}
